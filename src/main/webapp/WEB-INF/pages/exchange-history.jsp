@@ -71,8 +71,8 @@
                    </tr>
                    <c:forEach items="${exchangeHistoryNumberOfTransationsForEachFromCurrency}" var="item">
                     <tr>
-                        <td><c:out value="${item[0].getName()}"/></td>
-                        <td><c:out value="${item[1].getName()}"/></td>
+                        <td><c:out value="${item[0]}"/></td>
+                        <td><c:out value="${item[1]}"/></td>
                         <td><c:out value="${item[2]}"/></td>
                     </tr>
                    </c:forEach>
@@ -94,8 +94,8 @@
                    </tr>
                    <c:forEach items="${exchangeHistoryMaxNumberOfTransationsForFromCurrency}" var="item">
                        <tr>
-                        <td><c:out value="${item[0].getName()}"/></td>
-                        <td><c:out value="${item[1].getName()}"/></td>
+                        <td><c:out value="${item[0]}"/></td>
+                        <td><c:out value="${item[1]}"/></td>
                         <td><c:out value="${item[2]}"/></td>
                        </tr>
                    </c:forEach>

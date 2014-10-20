@@ -20,7 +20,6 @@ public class ExchangeHistory implements Serializable {
     private Currency fromCurrency;
     private Currency toCurrency;
     private Double amount;
-//    private Double rate;
     private Date transDate;
 
     public ExchangeHistory() {

@@ -7,11 +7,11 @@ import javax.persistence.ManyToOne;
 
 @Embeddable
 public class ExchangeRatePK implements Serializable {
-    @ManyToOne//(cascade=CascadeType.ALL)
+    @ManyToOne
     @JoinColumn(name="FROM_CURRENCY_ID")
     private Currency fromCurrency;
     
-    @ManyToOne//(cascade=CascadeType.ALL)
+    @ManyToOne
     @JoinColumn(name="TO_CURRENCY_ID")
     private Currency toCurrency;
 
