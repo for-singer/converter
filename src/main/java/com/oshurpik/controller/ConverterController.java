@@ -1,7 +1,7 @@
-package com.oshurpik.common.controller;
+package com.oshurpik.controller;
 
-import com.oshurpik.service.RateService;
 import com.oshurpik.service.ExchangeHistoryService;
+import com.oshurpik.service.RateService;
 import com.oshurpik.entity.ExchangeHistory;
 import com.oshurpik.entity.ExchangeRate;
 import com.oshurpik.service.ConverterService;
@@ -30,6 +30,8 @@ public class ConverterController {
     @Autowired
     private ConverterService converterService;
 
+    
+    
     @RequestMapping(value = "/", method = RequestMethod.GET)
     public String convert(@RequestParam(value="from_currency", defaultValue="") String fromCurrency, 
             @RequestParam(value="to_currency", defaultValue="") String toCurrency,

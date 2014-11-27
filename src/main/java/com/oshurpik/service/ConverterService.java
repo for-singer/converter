@@ -48,7 +48,7 @@ public class ConverterService {
     
     public String validateParams(String amount, String fromCurrency, String toCurrency) {
         List<String> currencies = new ArrayList<String>();
-//        List<Currency> currenciesList = currencyDao.list();
+
         Iterable<Currency> currenciesList = currencyRepository.findAll();
         for (Currency currency : currenciesList) {
             currencies.add(currency.getName());
