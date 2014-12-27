@@ -71,6 +71,11 @@ public class Currency implements Serializable {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return "Currency{" + "id=" + id + ", name=" + name + '}';
+    }
+
     
 }
 

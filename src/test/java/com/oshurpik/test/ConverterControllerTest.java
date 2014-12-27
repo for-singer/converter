@@ -3,7 +3,6 @@ package com.oshurpik.test;
 import com.oshurpik.config.WebAppContext;
 import com.oshurpik.controller.ConverterController;
 import com.oshurpik.service.ConverterService;
-import static org.hamcrest.CoreMatchers.is;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -21,8 +20,7 @@ import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -49,8 +47,8 @@ public class ConverterControllerTest {
     
     @Test
     public void testConvert() throws Exception {
-        String fromCurrencyStr = "usd";
-        String toCurrencyStr = "uah";
+        String fromCurrencyStr = "usd0";
+        String toCurrencyStr = "uah0";
         String amount = "100";
         String result = "1205";
         
@@ -63,9 +61,7 @@ public class ConverterControllerTest {
             .param("from_currency", fromCurrencyStr)
             .param("to_currency", toCurrencyStr))
             .andExpect(status().isOk())
-            .andExpect(view().name("converter"))
-            .andExpect(model().attribute("result", is(result)))        
-            .andExpect(model().attribute("hasError", is(false)));
+            .andExpect(content().string("{\"result\":\"" + result + "\",\"hasError\":false}"));
         
         verify(converterServiceMock, times(1)).validateParams(amount, fromCurrencyStr, toCurrencyStr);
         verify(converterServiceMock, times(1)).convert(fromCurrencyStr, toCurrencyStr, Double.valueOf(amount));

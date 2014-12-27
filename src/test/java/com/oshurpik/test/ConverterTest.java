@@ -2,258 +2,215 @@ package com.oshurpik.test;
 
 import com.oshurpik.config.WebAppContext;
 import com.oshurpik.entity.Currency;
-import com.oshurpik.entity.ExchangeHistory;
 import com.oshurpik.entity.ExchangeRate;
-import com.oshurpik.entity.ExchangeRatePK;
-import com.oshurpik.repository.CurrencyRepository;
-import com.oshurpik.repository.ExchangeHistoryRepository;
-import com.oshurpik.repository.ExchangeRateRepository;
-import java.util.Date;
-import static org.hamcrest.CoreMatchers.allOf;
-import static org.hamcrest.Matchers.hasProperty;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import org.json.simple.JSONObject;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.IntegrationTest;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.boot.test.TestRestTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
-import org.springframework.test.web.servlet.MockMvc;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.boot.test.SpringApplicationConfiguration;
+import org.springframework.http.HttpStatus;
 
-@RunWith(SpringJUnit4ClassRunner.class)
+@RunWith (SpringJUnit4ClassRunner.class)
+@SpringApplicationConfiguration (classes = WebAppContext.class)
 @WebAppConfiguration
-@ContextConfiguration(classes = WebAppContext.class)
+@IntegrationTest("server.port:9999")
 @ActiveProfiles("dev")
 public class ConverterTest {
     
-    private MockMvc mockMvc;
+    private static final String BASE_URL = "http://localhost:9999";
     
-    @Autowired
-    private CurrencyRepository currencyRepository;
-    
-    @Autowired
-    private ExchangeRateRepository exchangeRateRepository;
-    
-    @Autowired
-    private ExchangeHistoryRepository exchangeHistoryRepository;
-    
-    @Autowired
-    private WebApplicationContext wac;
+    private final RestTemplate restTemplate = new TestRestTemplate();
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         
-        exchangeRateRepository.deleteAll();
-        exchangeHistoryRepository.deleteAll();
-        currencyRepository.deleteAll();
-        
-        this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
     }
     
     @Test
     public void testConvert() throws Exception {
-        String fromCurrencyStr = "usd";
-        String toCurrencyStr = "uah";
-        String amount = "100";
+        String fromCurrencyStr = "usd1";
+        String toCurrencyStr = "uah1";
+        Double amount = 100.0;
         Double rate = 12.05;
         
-        Currency fromCurrency = new Currency(fromCurrencyStr);
-        Currency toCurrency = new Currency(toCurrencyStr);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        JSONObject jsonObject = new JSONObject();               
         
-        currencyRepository.save(fromCurrency);
-        currencyRepository.save(toCurrency);
+        jsonObject.put("name", fromCurrencyStr);
+        HttpEntity httpRequest = new HttpEntity(jsonObject.toString(), headers);
+        ResponseEntity<Currency> fromCurrency = restTemplate.postForEntity(BASE_URL + "/rest/currency", httpRequest, Currency.class);
+        assertEquals(HttpStatus.CREATED, fromCurrency.getStatusCode());
+        String fromCurrencyHref = fromCurrency.getHeaders().getLocation().toString();
         
-        ExchangeRate exchangeRate = new ExchangeRate(new ExchangeRatePK(fromCurrency, toCurrency), 12.05);
         
-        exchangeRateRepository.save(exchangeRate);
         
-        ExchangeHistory exchangeHistory = new ExchangeHistory(fromCurrency, toCurrency, Double.valueOf(amount), new Date());
+        jsonObject.put("name", toCurrencyStr);
+        httpRequest = new HttpEntity(jsonObject.toString(), headers);
+        ResponseEntity<Currency> toCurrency = restTemplate.postForEntity(BASE_URL + "/rest/currency", httpRequest, Currency.class);
+        assertEquals(HttpStatus.CREATED, toCurrency.getStatusCode());
+        String toCurrencyHref = toCurrency.getHeaders().getLocation().toString();
         
-        exchangeHistoryRepository.save(exchangeHistory);        
         
-        String result = String.valueOf(Math.round(Double.valueOf(amount) * rate * 100.00) / 100.00);
         
-        this.mockMvc.perform(get("/")
-            .param("amount", amount)
-            .param("from_currency", fromCurrencyStr)
-            .param("to_currency", toCurrencyStr))
-            .andExpect(status().isOk())
-            .andExpect(view().name("converter"))
-            .andExpect(forwardedUrl("/WEB-INF/pages/converter.jsp"))
-            .andExpect(model().attribute("hasError", false))
-            .andExpect(model().attribute("result", result));
+        jsonObject = new JSONObject();
+        jsonObject.put("fromCurrency", fromCurrencyHref);
+        jsonObject.put("toCurrency", toCurrencyHref);
+        jsonObject.put("rate", String.valueOf(rate));
+        httpRequest = new HttpEntity(jsonObject.toString(), headers);	        
+        ResponseEntity<ExchangeRate> returnedExchangeRate = restTemplate.postForEntity(BASE_URL + "/rest/exchange-rate/", httpRequest, ExchangeRate.class);
+        assertEquals(HttpStatus.CREATED, returnedExchangeRate.getStatusCode());
+        
+        
+        String result = String.valueOf(Math.round(amount * rate * 100.00) / 100.00);
+        
+        
+        ResponseEntity<String> response = restTemplate.getForEntity(BASE_URL + "/?amount={amount}&from_currency={from_currency}&to_currency={to_currency}", String.class, String.valueOf(amount), fromCurrencyStr, toCurrencyStr);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("{\"result\":\"" + result + "\",\"hasError\":false}", response.getBody());
     }
     
     @Test
     public void testExchangeHistory() throws Exception {
-        String currencyStr1 = "uah";
-        String currencyStr2 = "usd";
-        String currencyStr3 = "eur";
+        String currencyStr1 = "uah2";
+        String currencyStr2 = "usd2";
+        String currencyStr3 = "eur2";
         
         String amount1 = "100";
         String amount2 = "200";
         String amount3 = "300";
         
-        Double rate1 = 12.05;
-        Double rate2 = 16.35;
+        Double rate2_1 = 12.05;
+        Double rate3_1 = 16.35;
         
-        Currency currency1 = new Currency(currencyStr1);
-        Currency currency2 = new Currency(currencyStr2);
-        Currency currency3 = new Currency(currencyStr3);
-        
-        currencyRepository.save(currency1);
-        currencyRepository.save(currency2);
-        currencyRepository.save(currency3);
-        
-        ExchangeRate exchangeRate1 = new ExchangeRate(new ExchangeRatePK(currency2, currency1), rate1);
-        ExchangeRate exchangeRate2 = new ExchangeRate(new ExchangeRatePK(currency3, currency1), rate2);
-        
-        exchangeRateRepository.save(exchangeRate1);
-        exchangeRateRepository.save(exchangeRate2);
-        
-        Date date1 = new Date();
-        
-        ExchangeHistory exchangeHistory1 = new ExchangeHistory(currency2, currency1, Double.valueOf(amount1), date1);
-        ExchangeHistory exchangeHistory2 = new ExchangeHistory(currency2, currency1, Double.valueOf(amount1), new Date());
-        ExchangeHistory exchangeHistory3 = new ExchangeHistory(currency3, currency1, Double.valueOf(amount1), new Date());
-        ExchangeHistory exchangeHistory4 = new ExchangeHistory(currency3, currency1, Double.valueOf(amount2), new Date());
-        ExchangeHistory exchangeHistory5 = new ExchangeHistory(currency3, currency1, Double.valueOf(amount3), new Date());
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-        exchangeHistoryRepository.save(exchangeHistory1);
-        exchangeHistoryRepository.save(exchangeHistory2);
-        exchangeHistoryRepository.save(exchangeHistory3);
-        exchangeHistoryRepository.save(exchangeHistory4);
-        exchangeHistoryRepository.save(exchangeHistory5);
+        JSONObject jsonObject = new JSONObject();               
+        
+        jsonObject.put("name", currencyStr1);
+        HttpEntity httpRequest = new HttpEntity(jsonObject.toString(), headers);
+        ResponseEntity<Currency> currency1 = restTemplate.postForEntity(BASE_URL + "/rest/currency", httpRequest, Currency.class);
+        assertEquals(HttpStatus.CREATED, currency1.getStatusCode());
+        String currency1Href = currency1.getHeaders().getLocation().toString();
+        
+        
+        jsonObject.put("name", currencyStr2);
+        httpRequest = new HttpEntity(jsonObject.toString(), headers);
+        ResponseEntity<Currency> currency2 = restTemplate.postForEntity(BASE_URL + "/rest/currency", httpRequest, Currency.class);
+        assertEquals(HttpStatus.CREATED, currency2.getStatusCode());
+        String currency2Href = currency2.getHeaders().getLocation().toString();
+        
+        
+        jsonObject.put("name", currencyStr3);
+        httpRequest = new HttpEntity(jsonObject.toString(), headers);
+        ResponseEntity<Currency> currency3 = restTemplate.postForEntity(BASE_URL + "/rest/currency", httpRequest, Currency.class);
+        assertEquals(HttpStatus.CREATED, currency3.getStatusCode());
+        String currency3Href = currency3.getHeaders().getLocation().toString();
+        
+        
+        jsonObject = new JSONObject();
+        jsonObject.put("fromCurrency", currency2Href);
+        jsonObject.put("toCurrency", currency1Href);
+        jsonObject.put("rate", String.valueOf(rate2_1));
+        httpRequest = new HttpEntity(jsonObject.toString(), headers);	        
+        ResponseEntity<ExchangeRate> returnedExchangeRate1 = restTemplate.postForEntity(BASE_URL + "/rest/exchange-rate/", httpRequest, ExchangeRate.class);
+        assertEquals(HttpStatus.CREATED, returnedExchangeRate1.getStatusCode());
+        
+        
+        jsonObject = new JSONObject();
+        jsonObject.put("fromCurrency", currency3Href);
+        jsonObject.put("toCurrency", currency1Href);
+        jsonObject.put("rate", String.valueOf(rate3_1));
+        httpRequest = new HttpEntity(jsonObject.toString(), headers);	        
+        ResponseEntity<ExchangeRate> returnedExchangeRate2 = restTemplate.postForEntity(BASE_URL + "/rest/exchange-rate/", httpRequest, ExchangeRate.class);
+        assertEquals(HttpStatus.CREATED, returnedExchangeRate2.getStatusCode());
+        
+        
+        ResponseEntity<String> response = restTemplate.getForEntity(BASE_URL + "/?amount={amount}&from_currency={from_currency}&to_currency={to_currency}", String.class, String.valueOf(amount1), currencyStr2, currencyStr1);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        
+        response = restTemplate.getForEntity(BASE_URL + "/?amount={amount}&from_currency={from_currency}&to_currency={to_currency}", String.class, String.valueOf(amount1), currencyStr2, currencyStr1);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        
+        response = restTemplate.getForEntity(BASE_URL + "/?amount={amount}&from_currency={from_currency}&to_currency={to_currency}", String.class, String.valueOf(amount1), currencyStr2, currencyStr1);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        
+        response = restTemplate.getForEntity(BASE_URL + "/?amount={amount}&from_currency={from_currency}&to_currency={to_currency}", String.class, String.valueOf(amount2), currencyStr3, currencyStr1);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        
+        response = restTemplate.getForEntity(BASE_URL + "/?amount={amount}&from_currency={from_currency}&to_currency={to_currency}", String.class, String.valueOf(amount3), currencyStr3, currencyStr1);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
 
         
-//        String result = String.valueOf(Math.round(Double.valueOf(amount) * rate * 100.00) / 100.00);
+        ResponseEntity<Map> response2 = restTemplate.getForEntity(BASE_URL + "/exchange-history?from_currency={from_currency}", Map.class, currencyStr2);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
         
-        this.mockMvc.perform(get("/exchange-history")
-            .param("from_currency", currencyStr2))
-            .andExpect(status().isOk())
-            .andExpect(view().name("exchange-history"))
-            .andExpect(forwardedUrl("/WEB-INF/pages/exchange-history.jsp"))
-                
-            .andExpect(model().attribute("exchangeHistoryAll", hasSize(5)))
         
-                .andExpect(model().attribute("exchangeHistoryAll", hasItem(
-                        allOf(
-                                hasProperty("fromCurrency", is(currency2)),
-                                hasProperty("toCurrency", is(currency1)),
-                                hasProperty("amount", is(Double.valueOf(amount1)))
-                        )
-                )))
-                .andExpect(model().attribute("exchangeHistoryAll", hasItem(
-                        allOf(
-                                hasProperty("fromCurrency", is(currency2)),
-                                hasProperty("toCurrency", is(currency1)),
-                                hasProperty("amount", is(Double.valueOf(amount1)))
-                        )
-                )))
-                .andExpect(model().attribute("exchangeHistoryAll", hasItem(
-                        allOf(
-                                hasProperty("fromCurrency", is(currency3)),
-                                hasProperty("toCurrency", is(currency1)),
-                                hasProperty("amount", is(Double.valueOf(amount1)))
-                        )
-                )))
-                .andExpect(model().attribute("exchangeHistoryAll", hasItem(
-                        allOf(
-                                hasProperty("fromCurrency", is(currency3)),
-                                hasProperty("toCurrency", is(currency1)),
-                                hasProperty("amount", is(Double.valueOf(amount2)))
-                        )
-                )))
-                .andExpect(model().attribute("exchangeHistoryAll", hasItem(
-                        allOf(
-                                hasProperty("fromCurrency", is(currency3)),
-                                hasProperty("toCurrency", is(currency1)),
-                                hasProperty("amount", is(Double.valueOf(amount3)))
-                        )
-                )))
-            .andExpect(model().attribute("exchangeHistoryForFromCurrency", hasSize(2)))        
-                .andExpect(model().attribute("exchangeHistoryForFromCurrency", hasItem(
-                        allOf(
-                                hasProperty("fromCurrency", is(currency2)),
-                                hasProperty("toCurrency", is(currency1)),
-                                hasProperty("amount", is(Double.valueOf(amount1)))
-                        )
-                )))
-                .andExpect(model().attribute("exchangeHistoryForFromCurrency", hasItem(
-                        allOf(
-                                hasProperty("fromCurrency", is(currency2)),
-                                hasProperty("toCurrency", is(currency1)),
-                                hasProperty("amount", is(Double.valueOf(amount1)))
-                        )
-                )))
-            .andExpect(model().attribute("exchangeHistoryNumberOfTransationsForEachFromCurrency", hasSize(2)))
-                .andExpect(model().attribute("exchangeHistoryNumberOfTransationsForEachFromCurrency",  hasItem(
-                        new Object[] {currencyStr3, currencyStr1, (long)3}
-                )))
-                .andExpect(model().attribute("exchangeHistoryNumberOfTransationsForEachFromCurrency",  hasItem(
-                        new Object[] {currencyStr2, currencyStr1, (long)2}
-                )))    
-            .andExpect(model().attribute("exchangeHistoryMaxNumberOfTransationsForFromCurrency", hasSize(1)))
-                .andExpect(model().attribute("exchangeHistoryMaxNumberOfTransationsForFromCurrency",  hasItem(
-                        new Object[] {currencyStr3, currencyStr1, (long)3}
-                )));
+        List exchangeHistoryAll = (List)response2.getBody().get("exchangeHistoryAll");        
+        List exchangeHistoryAllList = new ArrayList();
+        for(Object exchangeHistoryAllItem : exchangeHistoryAll) {
+            exchangeHistoryAllList.add(Arrays.asList(((Map)((Map)exchangeHistoryAllItem).get("fromCurrency")).get("name"),
+                    ((Map)((Map)exchangeHistoryAllItem).get("toCurrency")).get("name"),
+                    String.valueOf((Double)((Map)exchangeHistoryAllItem).get("amount"))));
+        }
+        List exchangeHistoryAllExpectedList = new ArrayList();
+        exchangeHistoryAllExpectedList.add(Arrays.asList(currencyStr2, currencyStr1, String.valueOf(Double.parseDouble(amount1))));
+        exchangeHistoryAllExpectedList.add(Arrays.asList(currencyStr2, currencyStr1, String.valueOf(Double.parseDouble(amount1))));
+        exchangeHistoryAllExpectedList.add(Arrays.asList(currencyStr2, currencyStr1, String.valueOf(Double.parseDouble(amount1))));
+        exchangeHistoryAllExpectedList.add(Arrays.asList(currencyStr3, currencyStr1, String.valueOf(Double.parseDouble(amount2))));
+        exchangeHistoryAllExpectedList.add(Arrays.asList(currencyStr3, currencyStr1, String.valueOf(Double.parseDouble(amount3))));
+        exchangeHistoryAllExpectedList.removeAll(exchangeHistoryAllList);
+        assertEquals(0, exchangeHistoryAllExpectedList.size());
         
+        
+        List exchangeHistoryForFromCurrency = (List)response2.getBody().get("exchangeHistoryForFromCurrency");        
+        List exchangeHistoryForFromCurrencyList = new ArrayList();
+        for(Object exchangeHistoryForFromCurrencyItem : exchangeHistoryForFromCurrency) {
+            exchangeHistoryForFromCurrencyList.add(Arrays.asList(((Map)((Map)exchangeHistoryForFromCurrencyItem).get("fromCurrency")).get("name"),
+                    ((Map)((Map)exchangeHistoryForFromCurrencyItem).get("toCurrency")).get("name"),
+                    String.valueOf((Double)((Map)exchangeHistoryForFromCurrencyItem).get("amount"))));
+        }
+        List exchangeHistoryForFromCurrencyExpectedList = new ArrayList();
+        exchangeHistoryForFromCurrencyExpectedList.add(Arrays.asList(currencyStr2, currencyStr1, String.valueOf(Double.parseDouble(amount1))));
+        exchangeHistoryForFromCurrencyExpectedList.add(Arrays.asList(currencyStr2, currencyStr1, String.valueOf(Double.parseDouble(amount1))));
+        exchangeHistoryForFromCurrencyExpectedList.add(Arrays.asList(currencyStr2, currencyStr1, String.valueOf(Double.parseDouble(amount1))));
+        exchangeHistoryForFromCurrencyExpectedList.removeAll(exchangeHistoryForFromCurrencyList);
+        assertEquals(0, exchangeHistoryForFromCurrencyExpectedList.size());
+        
+        
+        List exchangeHistoryNumberOfTransationsForEachFromCurrency = (List)response2.getBody().get("exchangeHistoryNumberOfTransationsForEachFromCurrency");
+        List exchangeHistoryNumberOfTransationsForEachFromCurrencyExpected = new ArrayList();
+        exchangeHistoryNumberOfTransationsForEachFromCurrencyExpected.add(Arrays.asList("usd2","uah2",3));
+        exchangeHistoryNumberOfTransationsForEachFromCurrencyExpected.add(Arrays.asList("eur2","uah2",2));        
+        exchangeHistoryNumberOfTransationsForEachFromCurrencyExpected.removeAll(exchangeHistoryNumberOfTransationsForEachFromCurrency);
+        assertEquals(0, exchangeHistoryNumberOfTransationsForEachFromCurrencyExpected.size());
+        
+        
+        Object exchangeHistoryMaxNumberOfTransationsForFromCurrency = response2.getBody().get("exchangeHistoryMaxNumberOfTransationsForFromCurrency");
+        assertEquals(exchangeHistoryMaxNumberOfTransationsForFromCurrency, Arrays.asList(Arrays.asList("usd2","uah2",3)));        
     }
     
     @Test
-    public void testAddData() throws Exception {
-        String currencyStr1 = "uah";
-        String currencyStr2 = "usd";
-        String currencyStr3 = "eur";
-        
-        Double rate1 = 12.05;
-        Double rate2 = 18.0;
-        Double rate3 = 0.0847;
-        Double rate4 = 0.0568;
-        
-        this.mockMvc.perform(get("/add-data"))
-            .andExpect(status().isOk())
-            .andExpect(view().name("add-data"))
-            .andExpect(forwardedUrl("/WEB-INF/pages/add-data.jsp"));
-
-        
-        
-        assertEquals(3, currencyRepository.findAll().size());
-        
-        assertEquals(currencyStr1, currencyRepository.findAll().get(0).getName());
-        assertEquals(currencyStr2, currencyRepository.findAll().get(1).getName());
-        assertEquals(currencyStr3, currencyRepository.findAll().get(2).getName());
-        
-        
-        
-        assertEquals(4, exchangeRateRepository.findAll().size());
-        
-        assertEquals(currencyStr2, exchangeRateRepository.findAll().get(0).getId().getFromCurrency().getName());
-        assertEquals(currencyStr1, exchangeRateRepository.findAll().get(0).getId().getToCurrency().getName());
-        assertEquals(rate1, (Double)exchangeRateRepository.findAll().get(0).getRate());
-        
-        assertEquals(currencyStr3, exchangeRateRepository.findAll().get(1).getId().getFromCurrency().getName());
-        assertEquals(currencyStr1, exchangeRateRepository.findAll().get(1).getId().getToCurrency().getName());
-        assertEquals(rate2, (Double)exchangeRateRepository.findAll().get(1).getRate());
-        
-        assertEquals(currencyStr1, exchangeRateRepository.findAll().get(2).getId().getFromCurrency().getName());
-        assertEquals(currencyStr2, exchangeRateRepository.findAll().get(2).getId().getToCurrency().getName());
-        assertEquals(rate3, (Double)exchangeRateRepository.findAll().get(2).getRate());
-        
-        assertEquals(currencyStr1, exchangeRateRepository.findAll().get(3).getId().getFromCurrency().getName());
-        assertEquals(currencyStr3, exchangeRateRepository.findAll().get(3).getId().getToCurrency().getName());
-        assertEquals(rate4, (Double)exchangeRateRepository.findAll().get(3).getRate());
+    public void testAddData() throws Exception {        
+        ResponseEntity<String> response = restTemplate.getForEntity(BASE_URL + "/add-data", String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("{\"result\":\"Data was added\"}", response.getBody());
     }
 }

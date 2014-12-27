@@ -2,7 +2,6 @@ package com.oshurpik.service;
 
 import com.oshurpik.entity.Currency;
 import com.oshurpik.entity.ExchangeRate;
-import com.oshurpik.entity.ExchangeRatePK;
 import com.oshurpik.repository.CurrencyRepository;
 import com.oshurpik.repository.ExchangeRateRepository;
 import java.io.IOException;
@@ -29,12 +28,12 @@ public class RateService {
         currencyRepository.save(currency);
         currencyRepository.save(currency2);
         currencyRepository.save(currency3);
-                
         
-        ExchangeRate exchangeRate = new ExchangeRate(new ExchangeRatePK(currency2, currency), 12.05);
-        ExchangeRate exchangeRate2 = new ExchangeRate(new ExchangeRatePK(currency3, currency), 18.0);
-        ExchangeRate exchangeRate3 = new ExchangeRate(new ExchangeRatePK(currency, currency2), 0.0847);
-        ExchangeRate exchangeRate4 = new ExchangeRate(new ExchangeRatePK(currency, currency3), 0.0568);
+        
+        ExchangeRate exchangeRate = new ExchangeRate(currency2, currency, 12.05);
+        ExchangeRate exchangeRate2 = new ExchangeRate(currency3, currency, 18.0);
+        ExchangeRate exchangeRate3 = new ExchangeRate(currency, currency2, 0.0847);
+        ExchangeRate exchangeRate4 = new ExchangeRate(currency, currency3, 0.0568);
         
         exchangeRateRepository.save(exchangeRate);
         exchangeRateRepository.save(exchangeRate2);
